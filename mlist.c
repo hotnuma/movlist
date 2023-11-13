@@ -1,11 +1,10 @@
-#include "MovList.h"
-#include "Global.h"
+#include "mlist.h"
+#include "mlist_global.h"
 #include "MovMediaInfo.h"
 
-#include <CFileInfo.h>
-#include <CDirParser.h>
-#include <CIniFile.h>
-#include <libfile.h>
+#include <cfileinfo.h>
+#include <cdirparser.h>
+#include <cinifile.h>
 #include <libpath.h>
 
 #include <time.h>

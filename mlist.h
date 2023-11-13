@@ -1,10 +1,10 @@
 #ifndef MLIST_H
 #define MLIST_H
 
-#include "CStringList.h"
-#include "CFile.h"
-#include "CList.h"
-#include "MovListEntry.h"
+#include "cstringlist.h"
+#include "cfile.h"
+#include "clist.h"
+#include "mlist_entry.h"
 
 class MovList
 {

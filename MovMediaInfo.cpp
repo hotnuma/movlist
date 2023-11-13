@@ -1,5 +1,5 @@
 #include "MovMediaInfo.h"
-#include "Global.h"
+#include "mlist_global.h"
 
 #include <MediaInfo/MediaInfo.h>
 

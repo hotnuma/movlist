@@ -1,7 +1,7 @@
 #ifndef GLOBAL_H
 #define GLOBAL_H
 
-#include "CString.h"
+#include "cstring.h"
 
 #define LINE1 "================================================================"
 #define LINE2 "----------------------------------------------------------------"

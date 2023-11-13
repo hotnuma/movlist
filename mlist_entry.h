@@ -2,7 +2,7 @@
 #define MLIST_ENTRY_H
 
 #include "stdint.h"
-#include "CString.h"
+#include "cstring.h"
 
 class MovListEntry
 {

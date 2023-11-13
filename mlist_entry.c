@@ -1,7 +1,7 @@
-#include "MovListEntry.h"
+#include "mlist_entry.h"
 #include <stdlib.h>
-#include "CStringList.h"
-#include "Global.h"
+#include "cstringlist.h"
+#include "mlist_global.h"
 
 #define MLS_MINCOLS 7
 
