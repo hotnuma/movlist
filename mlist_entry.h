@@ -4,26 +4,26 @@
 #include "stdint.h"
 #include "cstring.h"
 
-class MovListEntry
+typedef struct _MovListEntry MovListEntry;
+MovListEntry* mlist_entry_new();
+void mlist_entry_free(MovListEntry *entry);
+
+//bool readLineTxt(const CString &line);
+//bool getMediaInfo(MovListEntry *entry);
+
+struct _MovListEntry
 {
-public:
-
-    MovListEntry();
-
-    bool readLineTxt(const CString &line);
-    bool getMediaInfo(MovListEntry *entry);
-
-    CString drive;
-    CString directory;
-    CString year;
-    CString title;
-    CString ftype;
+    CString *drive;
+    CString *directory;
+    CString *year;
+    CString *title;
+    CString *ftype;
     uint64_t fsize;
     uint64_t fmodified;
-    CString mediainfo;
+    CString *mediainfo;
 
-    CString titleKey;
-    CString sortKey;
+    CString *titleKey;
+    CString *sortKey;
 
 };
 

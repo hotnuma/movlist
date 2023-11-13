@@ -1,12 +1,13 @@
 #include "mlist.h"
+
 #include "mlist_global.h"
-#include "MovMediaInfo.h"
+#include "mlist_mediainfo.h"
 
 #include <cfileinfo.h>
 #include <cdirparser.h>
 #include <cinifile.h>
 #include <libpath.h>
-
+#include <libstr.h>
 #include <time.h>
 #include <string.h>
 
@@ -20,52 +21,95 @@ int _compare(const void *entry1, const void *entry2)
     const MovListEntry *e1 = *((MovListEntry**) entry1);
     const MovListEntry *e2 = *((MovListEntry**) entry2);
 
-    return e1->sortKey.compare(e2->sortKey);
+    return cstr_compare(e1->sortKey, c_str(e2->sortKey), true);
 }
 
-DELETEFUNC(MovListEntry)
-
-MovList::MovList()
+MovList* mlist_new()
 {
-    SETDELETEFUNC(&_entryList, MovListEntry);
+    MovList *list = (MovList*) malloc(sizeof(MovList));
+
+    list->inlist = cstrlist_new_size(16);
+    list->outpath = cstr_new_size(128);
+    list->optinclude = cstr_new_size(128);
+
+    list->optgroup = false;
+    list->optminsize = 50;
+    list->optinfos = false;
+    list->optxls = false;
+
+    list->entryList = clist_new(2048, (CDeleteFunc) mlist_entry_free);
+
+    return list;
 }
 
-void MovList::sortByKey()
+void pritem_free(MovList *list)
 {
-    _entryList.sort(_compare);
+    if (!list)
+        return;
+
+    cstrlist_free(list->inlist);
+    cstr_free(list->outpath);
+    cstr_free(list->optinclude);
+    clist_free(list->entryList);
+
+    free(list);
 }
 
-MovListEntry* MovList::find(MovListEntry *entry)
+bool    _readDirectory(MovList *movlist,
+                       CString *basedir,
+                       CString *subdir,
+                       CString *drivename);
+
+CString _getDefaultHeader();
+bool    _writeHeader(CString *buffer);
+
+int mlist_size(MovList *list)
+{
+    return clist_size(list->entryList);
+}
+
+void mlist_sortByKey(MovList *list)
+{
+    clist_sort(list->entryList, _compare);
+}
+
+MovListEntry* mlist_find(MovList *list, MovListEntry *entry)
 {
     if (!entry)
-        return nullptr;
+        return NULL;
 
-    int size = _entryList.size();
+    int size = clist_size(list->entryList);
 
     for (int i = 0; i < size; ++i)
     {
-        MovListEntry *current = (MovListEntry*) _entryList[i];
+        MovListEntry *current = (MovListEntry*) clist_at(list->entryList, i);
 
-        if (current->title == entry->title
+        if (cstr_compare(current->title, c_str(entry->title), true) == 0
             && current->fsize == entry->fsize
             && current->fmodified == entry->fmodified)
             return current;
     }
 
-    return nullptr;
+    return NULL;
 }
 
-bool MovList::execute(int argc, char **argv)
+//bool    mlist_readParams(MovList *list, CString *inipath, const CString *section);
+
+//bool    mlist_readFile(MovList *list, CString *filepath, CString *fname /*= ""*/);
+//bool    mlist_writeFile(MovList *list, CString *filepath);
+
+bool mlist_execute(MovList *list, int argc, char **argv)
 {
     int n = 1;
 
-    CString section = "Default";
+    CStringAuto *section = cstr_new_size(16);
+    cstr_copy(section, "Default");
 
     while (n < argc)
     {
-        CString part = argv[n];
+        const char *part = argv[n];
 
-        if (part == "-se")
+        if (strcmp(part, "-se") == 0)
         {
             if (++n >= argc)
             {
@@ -73,10 +117,10 @@ bool MovList::execute(int argc, char **argv)
                 return false;
             }
 
-            section = argv[n];
+            cstr_copy(section, argv[n]);
         }
 
-        else if (part == "-mi")
+        else if (strcmp(part, "-mi") == 0)
         {
             if (++n >= argc)
             {
@@ -84,21 +128,20 @@ bool MovList::execute(int argc, char **argv)
                 return false;
             }
 
-            CString temp = argv[n];
-            _optminsize = temp.toInt();
+            list->optminsize = atoi(argv[n]);
         }
 
-        else if (part == "-me")
+        else if (strcmp(part, "-me") == 0)
         {
-            _optinfos = true;
+            list->optinfos = true;
         }
 
-        else if (part == "-xl")
+        else if (strcmp(part, "-xl") == 0)
         {
-            _optxls = true;
+            list->optxls = true;
         }
 
-        else if (part == "-i")
+        else if (strcmp(part, "-i") == 0)
         {
             if (++n >= argc)
             {
@@ -108,26 +151,28 @@ bool MovList::execute(int argc, char **argv)
 
             // get input ini files such as "Films.ini".
 
-            CString fname = argv[n];
+            part = argv[n];
 
-            if (fname.isEmpty()
-                || !fname.endsWith(".ini")
-                || fname.contains("/"))
+            if (strlen(part) < 1
+                || str_endswith(part, ".ini", true) == false
+                || strchr(part, '/') != NULL)
             {
-                print("*** Invalid file: %s", fname.c_str());
+                print("*** Invalid file: %s", part);
 
                 return false;
             }
 
             // put unique base names into a list.
 
-            fname = pathBaseName(fname);
+            const char *fname = path_basename_ptr(part);
+            if (!fname)
+                fname = part;
 
-            if (_inlist.find(fname) == -1)
-                _inlist.append(fname);
+            if (cstrlist_find(list->inlist, fname, true) == -1)
+                cstrlist_append(list->inlist, fname);
         }
 
-        else if (part == "-o")
+        else if (strcmp(part, "-o") == 0)
         {
             if (++n >= argc)
             {
@@ -135,11 +180,11 @@ bool MovList::execute(int argc, char **argv)
                 return false;
             }
 
-            _outpath = argv[n];
+            cstr_copy(list->outpath, argv[n]);
 
-            if (!_outpath.endsWith(".txt"))
+            if (!cstr_endswith(list->outpath, ".txt", true))
             {
-                print("*** Invalid file path: %s", _outpath.c_str());
+                print("*** Invalid file path: %s", c_str(list->outpath));
                 return false;
             }
         }
@@ -153,7 +198,7 @@ bool MovList::execute(int argc, char **argv)
         n++;
     }
 
-    if (_inlist.isEmpty() || _outpath == "")
+    if (cstrlist_isempty(list->inlist) || cstr_isempty(list->outpath))
     {
         print("*** Missing option.");
         return false;

@@ -1,26 +1,22 @@
 #include "mlist.h"
-
-//#include <CFileInfo.h>
-//#include <sys/stat.h>
-//#include <math.h>
-//#include <time.h>
-
 #include <locale.h>
-
-#include <print.h>
 
 #define RETURN_ERROR 1
 
 int main(int argc, char **argv)
 {
-    setlocale(LC_ALL,"fr_FR.UTF-8");
+    setlocale(LC_ALL, "fr_FR.UTF-8");
 
-    MovList movlist;
+    int ret = EXIT_SUCCESS;
 
-    if (!movlist.execute(argc, argv))
-        return RETURN_ERROR;
+    MovList *movlist = mlist_new();
 
-    return 0;
+    if (!mlist_execute(movlist, argc, argv))
+        ret = EXIT_FAILURE;
+
+    mlist_free(movlist);
+
+    return ret;
 }
 
 

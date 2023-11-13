@@ -6,44 +6,34 @@
 #include "clist.h"
 #include "mlist_entry.h"
 
-class MovList
+typedef struct _MovList MovList;
+MovList* mlist_new();
+void mlist_free(MovList *list);
+
+int     mlist_size(MovList *list);
+void    mlist_sortByKey(MovList *list);
+MovListEntry* mlist_find(MovList *list, MovListEntry *entry);
+
+bool    mlist_execute(MovList *list, int argc, char **argv);
+
+bool    mlist_readParams(MovList *list, CString *inipath, const CString *section);
+
+bool    mlist_readFile(MovList *list, CString *filepath, CString *fname /*= ""*/);
+bool    mlist_writeFile(MovList *list, CString *filepath);
+
+struct _MovList
 {
-public:
+    CStringList *inlist;
+    CString     *outpath;
 
-    MovList();
+    CString     *optinclude;
 
-    int     size() {return _entryList.size();}
-    void    sortByKey();
-    MovListEntry* find(MovListEntry *entry);
+    bool        optgroup;
+    int         optminsize;
+    bool        optinfos;
+    bool        optxls;
 
-    bool    execute(int argc, char **argv);
-
-    bool    readParams(const CString &inipath, const CString &section);
-
-    bool    readFile(const CString &filepath, CString fname = "");
-    bool    writeFile(const CString &filepath);
-
-private:
-
-    bool    _readDirectory(MovList &movlist,
-                           const CString &basedir,
-                           const CString &subdir,
-                           const CString &drivename);
-
-    CString _getDefaultHeader();
-    bool    _writeHeader(CString &buffer);
-
-    CStringList _inlist;
-    CString     _outpath;
-
-    CString     _optinclude;
-
-    bool        _optgroup = false;
-    int         _optminsize = 50;
-    bool        _optinfos = false;
-    bool        _optxls = false;
-
-    CList       _entryList;
+    CList       *entryList;
 
 };
 

@@ -1,4 +1,4 @@
-#include "MovMediaInfo.h"
+#include "mlist_mediainfo.h"
 #include "mlist_global.h"
 
 #include <MediaInfo/MediaInfo.h>

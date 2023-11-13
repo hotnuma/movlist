@@ -11,16 +11,16 @@ PKGCONFIG += libmediainfo
 HEADERS = \
     mlist.h \
     mlist_entry.h \
-    MovMediaInfo.h \
-    mlist_global.h
+    mlist_global.h \
+    mlist_mediainfo.h
 
 SOURCES = \
     0Temp.c \
     main.c \
     mlist.c \
     mlist_entry.c \
-    MovMediaInfo.cpp \
-    mlist_global.c
+    mlist_global.c \
+    mlist_mediainfo.cpp
 
 DISTFILES = \
     install.sh \
