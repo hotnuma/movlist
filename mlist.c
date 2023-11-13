@@ -6,6 +6,7 @@
 #include <cfileinfo.h>
 #include <cdirparser.h>
 #include <cinifile.h>
+//#include <cfile.h>
 #include <libpath.h>
 #include <libstr.h>
 #include <time.h>
@@ -98,6 +99,7 @@ bool mlist_execute(MovList *list, int argc, char **argv)
 {
     int n = 1;
 
+    CStringAuto *fname = cstr_new_size(16);
     CStringAuto *section = cstr_new_size(16);
     cstr_copy(section, "Default");
 
@@ -160,12 +162,11 @@ bool mlist_execute(MovList *list, int argc, char **argv)
 
             // put unique base names into a list.
 
-            const char *fname = path_basename_ptr(part);
-            if (!fname)
-                fname = part;
+            cstr_copy(fname, part);
+            path_strip_ext(fname, true);
 
-            if (cstrlist_find(list->inlist, fname, true) == -1)
-                cstrlist_append(list->inlist, fname);
+            if (cstrlist_find(list->inlist, c_str(fname), true) == -1)
+                cstrlist_append(list->inlist, c_str(fname));
         }
 
         else if (strcmp(part, "-o") == 0)
@@ -204,6 +205,10 @@ bool mlist_execute(MovList *list, int argc, char **argv)
 
     CStringAuto *fullpath = cstr_new_size(128);
 
+    CStringAuto *basedir = cstr_new_size(128);
+    CStringListAuto *inclist =  cstrlist_new_size(24);
+    CStringAuto *fulldir = cstr_new_size(128);
+
     int size = cstrlist_size(list->inlist);
 
     for (int i = 0; i < size; ++i)
@@ -216,6 +221,7 @@ bool mlist_execute(MovList *list, int argc, char **argv)
         cstr_clear(fullpath);
 
         // no plugged drive, read input file.
+
         if (!get_fullpath(fullpath, c_str(drivename)))
         {
             // External drive not plugged.
@@ -255,15 +261,10 @@ bool mlist_execute(MovList *list, int argc, char **argv)
 
             // parse included sub directories.
 
-            CStringAuto *basedir = cstr_new_size(128);
             path_dirname(basedir, c_str(fullpath));
-
-            CStringListAuto *inclist =  cstrlist_new_size(24);
             cstrlist_split(inclist, c_str(list->optinclude), ",", false, true);
 
             int sz = cstrlist_size(inclist);
-
-            CStringAuto *fulldir = cstr_new_size(128);
 
             for (int i = 0; i < sz; ++i)
             {
@@ -331,67 +332,79 @@ bool mlist_readParams(MovList *list, const char *inipath, const char *section)
 bool _mlist_read_directory(MovList *list, MovList *movlist,
                            CString *basedir, CString *subdir, CString *drivename)
 {
-    CString directory = pathJoin(basedir, subdir);
+    CStringAuto *directory = cstr_new_size(128);
+    path_join(directory, c_str(basedir), c_str(subdir));
 
-    if (directory.isEmpty() || !dirExists(directory))
+    if (cstr_isempty(directory) || !dir_exists(c_str(directory)))
     {
-        print("*** Can't read directory %s", directory.c_str());
+        print("*** Can't read directory %s", c_str(directory));
         return false;
     }
 
-    CDirParser dir;
-    if (!dir.open(directory, CDP_SUBDIRS | CDP_FILES))
+    CDirParserAuto *dir = cdirparser_new();
+    if (!cdirparser_open(dir, c_str(directory), CDP_SUBDIRS | CDP_FILES))
         return false;
 
     int count = 0;
-    CString filepath;
 
-    while (dir.read(filepath))
+    CStringAuto *filepath = cstr_new_size(128);
+    CFileInfoAuto *fileinfo = cfileinfo_new();
+
+    while (cdirparser_read(dir, filepath, NULL))
     {
-        if (!filepath.endsWith(".avi", false)
-            && !filepath.endsWith(".divx", false)
-            && !filepath.endsWith(".flv", false)
-            && !filepath.endsWith(".m2ts", false)
-            && !filepath.endsWith(".mkv", false)
-            && !filepath.endsWith(".mp4", false)
-            && !filepath.endsWith(".mpg", false)
-            && !filepath.endsWith(".ts", false)
-            && !filepath.endsWith(".vob", false))
+        if (!cstr_endswith(filepath, ".avi", false)
+            && !cstr_endswith(filepath, ".divx", false)
+            && !cstr_endswith(filepath, ".flv", false)
+            && !cstr_endswith(filepath, ".m2ts", false)
+            && !cstr_endswith(filepath, ".mkv", false)
+            && !cstr_endswith(filepath, ".mp4", false)
+            && !cstr_endswith(filepath, ".mpg", false)
+            && !cstr_endswith(filepath, ".ts", false)
+            && !cstr_endswith(filepath, ".vob", false))
+        {
             continue;
+        }
 
-        CFileInfo fileinfo(filepath);
+        cfileinfo_read(fileinfo, c_str(filepath));
 
         // skip files that are to small.
-        uint64_t fsize = fileinfo.size();
-        if (fsize < (uint64_t) (_optminsize * 1000000))
+        uint64_t fsize = cfileinfo_size(fileinfo);
+        if (fsize < (uint64_t) (list->optminsize * 1000000))
             continue;
 
         if (count < 1)
             print("");
 
-        print("   %s", filepath.c_str());
+        print("   %s", c_str(filepath));
         ++count;
 
-        MovListEntry *entry = new MovListEntry();
+        MovListEntry *entry = mlist_entry_new();
+        // ******* mem leak
 
-        entry->drive = drivename;
-        entry->directory = subdir;
+        cstr_copy(entry->drive, c_str(drivename));
+        cstr_copy(entry->directory, c_str(subdir));
         entry->fsize = fsize;
-        entry->fmodified = fileinfo.mtime();
+        entry->fmodified = cfileinfo_mtime(fileinfo);
 
-        CString ext = pathExt(filepath);
-        if (ext.startsWith("."))
-            entry->ftype = ext.mid(1);
-        else
-            entry->ftype = ext;
+        const char *p = path_ext(c_str(filepath), true);
+        if (p)
+        {
+            ++p;
+            cstr_copy(entry->ftype, p);
+        }
 
-        CString temp = pathFileName(filepath);
-        entry->title = pathBaseName(temp);
+        p = path_basename_ptr(c_str(filepath));
 
-        temp = entry->title;
-        int pos = strstr(temp, " - ") - temp.c_str();
+        if (!p)
+            p = c_str(filepath);
 
-        if (pos == 4 && temp.size() > 7)
+        cstr_copy(entry->title, p);
+        path_strip_ext(entry->title, true);
+
+        p = c_str(entry->title);
+        int pos = strstr(p, " - ") - p;
+
+        if (pos == 4 && p && strlen(p) > 7)
         {
             entry->year = temp.left(pos);
             entry->title = temp.mid(pos + 3);
