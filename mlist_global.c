@@ -5,7 +5,7 @@
 
 #include <print.h>
 
-bool getFullPath(const CString &drname, CString &result)
+bool get_fullpath(CString *result, const char *drname)
 {
     result.clear();
 

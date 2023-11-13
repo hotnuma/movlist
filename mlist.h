@@ -8,7 +8,7 @@
 
 typedef struct _MovList MovList;
 MovList* mlist_new();
-void mlist_free(MovList *list);
+void    mlist_free(MovList *list);
 
 int     mlist_size(MovList *list);
 void    mlist_sortByKey(MovList *list);
@@ -16,9 +16,8 @@ MovListEntry* mlist_find(MovList *list, MovListEntry *entry);
 
 bool    mlist_execute(MovList *list, int argc, char **argv);
 
-bool    mlist_readParams(MovList *list, CString *inipath, const CString *section);
-
-bool    mlist_readFile(MovList *list, CString *filepath, CString *fname /*= ""*/);
+bool    mlist_readParams(MovList *list, const char *inipath, const char *section);
+bool    mlist_readFile(MovList *list, CString *filepath, CString *fname);
 bool    mlist_writeFile(MovList *list, CString *filepath);
 
 struct _MovList

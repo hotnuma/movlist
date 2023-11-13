@@ -55,13 +55,14 @@ void pritem_free(MovList *list)
     free(list);
 }
 
-bool    _readDirectory(MovList *movlist,
-                       CString *basedir,
-                       CString *subdir,
-                       CString *drivename);
+bool _mlist_read_directory(MovList *list,
+                           MovList *movlist,
+                           CString *basedir,
+                           CString *subdir,
+                           CString *drivename);
 
 CString _getDefaultHeader();
-bool    _writeHeader(CString *buffer);
+bool _writeHeader(CString *buffer);
 
 int mlist_size(MovList *list)
 {
@@ -92,11 +93,6 @@ MovListEntry* mlist_find(MovList *list, MovListEntry *entry)
 
     return NULL;
 }
-
-//bool    mlist_readParams(MovList *list, CString *inipath, const CString *section);
-
-//bool    mlist_readFile(MovList *list, CString *filepath, CString *fname /*= ""*/);
-//bool    mlist_writeFile(MovList *list, CString *filepath);
 
 bool mlist_execute(MovList *list, int argc, char **argv)
 {
@@ -206,47 +202,50 @@ bool mlist_execute(MovList *list, int argc, char **argv)
 
     // parse inifile base names.
 
-    int size = _inlist.size();
+    CStringAuto *fullpath = cstr_new_size(128);
+
+    int size = cstrlist_size(list->inlist);
 
     for (int i = 0; i < size; ++i)
     {
-        CString &drivename = _inlist[i];
+        CString *drivename = cstrlist_at(list->inlist, i);
 
         print(LINE1);
-        print(" name  : %s", drivename.c_str());
+        print(" name  : %s", c_str(drivename));
 
-        CString fullpath;
+        cstr_clear(fullpath);
 
         // no plugged drive, read input file.
-        if (!getFullPath(drivename, fullpath))
+        if (!get_fullpath(fullpath, c_str(drivename)))
         {
             // External drive not plugged.
-            if (fileExists(_outpath)
-                && !readFile(_outpath, drivename))
+            if (file_exists(c_str(list->outpath))
+                && !mlist_readFile(list, list->outpath, drivename))
                 return false;
 
-            //print(LINE2);
             print("");
         }
 
         // parse plugged drive.
+
         else
         {
-            print(" drive : %s", fullpath.c_str());
+            print(" drive : %s", c_str(fullpath));
 
             // read ini file
-            if (!readParams(fullpath, section))
+            if (!mlist_readParams(list, c_str(fullpath), c_str(section)))
             {
-                print("*** Error reading file: %s", fullpath.c_str());
+                print("*** Error reading file: %s", c_str(fullpath));
                 return false;
             }
 
-            MovList movlist;
+            MovList *movlist = mlist_new();
 
-            if (_optinfos && fileExists(_outpath))
+            if (list->optinfos && file_exists(c_str(list->outpath)))
             {
-                if (!movlist.readFile(_outpath, drivename))
+                if (!mlist_readFile(movlist, list->outpath, drivename))
                 {
+                    mlist_free(movlist);
                     return false;
                 }
             }
@@ -256,73 +255,81 @@ bool mlist_execute(MovList *list, int argc, char **argv)
 
             // parse included sub directories.
 
-            CString basedir = pathDirName(fullpath);
-            CStringList inclist = _optinclude.split(",");
+            CStringAuto *basedir = cstr_new_size(128);
+            path_dirname(basedir, c_str(fullpath));
 
-            int sz = inclist.size();
+            CStringListAuto *inclist =  cstrlist_new_size(24);
+            cstrlist_split(inclist, c_str(list->optinclude), ",", false, true);
+
+            int sz = cstrlist_size(inclist);
+
+            CStringAuto *fulldir = cstr_new_size(128);
 
             for (int i = 0; i < sz; ++i)
             {
-                CString subdir = inclist[i];
-                CString fulldir = pathJoin(basedir, subdir);
+                CString *subdir = cstrlist_at(inclist, i);
 
-                print(" + %s", fulldir.c_str());
+                path_join(fulldir, c_str(basedir), c_str(subdir));
+                print(" + %s", c_str(fulldir));
 
-                if (!_readDirectory(movlist,
-                                    basedir,
-                                    subdir,
-                                    drivename))
+                if (!_mlist_read_directory(list,
+                                           movlist,
+                                           basedir,
+                                           subdir,
+                                           drivename))
                 {
+                    mlist_free(movlist);
                     return false;
                 }
 
                 print("");
             }
+
+            mlist_free(movlist);
         }
     }
 
-    sortByKey();
+    mlist_sortByKey(list);
 
-    if (!writeFile(_outpath))
+    if (!mlist_writeFile(list, list->outpath))
         return false;
 
-    if (!_optxls)
+    if (!list->optxls)
         return true;
 
-    CString reportpath = pathBaseName(_outpath);
+    CStringAuto *reportpath = cstr_new_copy(list->outpath);
+    path_strip_ext(reportpath, true);
+    cstr_append(reportpath, REPORT_EXT);
 
-    reportpath += REPORT_EXT; // ".xls";
-
-    if (!writeFile(reportpath))
+    if (!mlist_writeFile(list, reportpath))
         return false;
 
     return true;
 }
 
-bool MovList::readParams(const CString &inipath, const CString &section)
+bool mlist_readParams(MovList *list, const char *inipath, const char *section)
 {
-    if (!fileExists(inipath))
+    if (!file_exists(inipath))
         return false;
 
-    CIniFile inifile;
-    inifile.open(inipath);
+    CIniFileAuto *inifile = cinifile_new();
+    cinifile_read(inifile, inipath);
 
-    CIniSection *iniSection = inifile.section(section);
+    CIniSection *iniSection = cinifile_section(inifile, section);
 
     if (!iniSection)
         return false;
 
-    _optinclude = iniSection->value("include");
-    if (_optinclude == "")
+    cinisection_value(iniSection, list->optinclude, "include", "");
+
+    if (cstr_isempty(list->optinclude))
         return false;
 
     return true;
 }
 
-bool MovList::_readDirectory(MovList &movlist,
-                             const CString &basedir,
-                             const CString &subdir,
-                             const CString &drivename)
+bool _mlist_read_directory(MovList *list, MovList *movlist,
+                           CString *basedir, CString *subdir, CString *drivename)
 {
     CString directory = pathJoin(basedir, subdir);
 
@@ -424,7 +431,7 @@ bool MovList::_readDirectory(MovList &movlist,
     return true;
 }
 
-bool MovList::readFile(const CString &filepath, CString fname)
+bool mlist_readFile(MovList *list, CString *filepath, CString *fname)
 {
     print(" read  : %s", filepath.c_str());
 
@@ -487,7 +494,7 @@ bool MovList::readFile(const CString &filepath, CString fname)
     return true;
 }
 
-bool MovList::writeFile(const CString &filepath)
+bool mlist_writeFile(MovList *list, CString *filepath)
 {
     CString buffer;
 

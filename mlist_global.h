@@ -9,7 +9,7 @@
 #define SEP_TAB "\t"
 #define REPORT_EXT ".ods"
 
-bool getFullPath(const CString &drname, CString &result);
+bool get_fullpath(CString *result, const char *drname);
 
 #endif // GLOBAL_H
 
