@@ -1,48 +1,23 @@
 #include "mlist_mediainfo.h"
-#include "mlist_global.h"
-
 #include <MediaInfo/MediaInfo.h>
 
 #define MediaInfoNameSpace MediaInfoLib;
 using namespace MediaInfoNameSpace
 
-void getMediaHeader(CString &result)
-{
-    CString sep = SEP_TAB;
-
-    result += "Application";
-    result += sep;
-    result += "BitRate";
-    result += sep;
-    result += "Duration";
-
-    result += sep;
-    result += "Video";
-    result += sep;
-    result += "Width";
-    result += sep;
-    result += "Heigth";
-    result += sep;
-    result += "Aspect";
-    result += sep;
-    result += "FrameRate";
-
-    result += sep;
-    result += "Audio";
-}
-
-bool getMediaInfo(const CString &filepath, CString &result)
+char* getMediaInfo(const char *filepath)
 {
     size_t wlen = mbstowcs(nullptr, filepath, 0);
     if (wlen < 1)
-        return false;
+        return NULL;
 
-    wchar_t *wstr = wcsalloc(wlen + 1);
+    //wchar_t *wstr = wcsalloc(wlen + 1);
+
+    wchar_t *wstr = (wchar_t*) malloc((wlen + 1) * sizeof(wchar_t));
 
     if (mbstowcs(wstr, filepath, wlen + 1) == (size_t) -1)
     {
         free(wstr);
-        return false;
+        return NULL;
     }
 
     MediaInfo mediaInfo;
@@ -98,26 +73,19 @@ bool getMediaInfo(const CString &filepath, CString &result)
 
     mediaInfo.Close();
 
-    //result += CString::fromStdWString(line);
-
     size_t len = wcstombs(nullptr, line.c_str(), 0);
     if (len < 1)
-        return false;
+        return NULL;
 
-    char *cstr = stralloc(len + 1);
+    char *cstr = (char*) malloc((len + 1) * sizeof(char)); //stralloc(len + 1);
 
     if (wcstombs(cstr, line.c_str(), len + 1) == (size_t) -1)
     {
         free(cstr);
-        return false;
+        return NULL;
     }
 
-    //result += wcharToCString(line.c_str());
-
-    result += cstr;
-    free(cstr);
-
-    return true;
+    return cstr;
 }
 
 

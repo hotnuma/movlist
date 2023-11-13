@@ -26,7 +26,7 @@ cpp_args = [
 ]
 
 app_deps = [
-    dependency('tinyc', static : true),
+    dependency('tinyc'),
     dependency('libmediainfo'),
 ]
 

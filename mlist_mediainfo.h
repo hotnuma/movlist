@@ -1,10 +1,7 @@
 #ifndef MEDIAINFO_H
 #define MEDIAINFO_H
 
-#include "cstring.h"
-
-void getMediaHeader(CString &result);
-bool getMediaInfo(const CString &filepath, CString &result);
+char* getMediaInfo(const char *filepath);
 
 #endif // MEDIAINFO_H
 

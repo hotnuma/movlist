@@ -17,8 +17,8 @@ MovListEntry* mlist_find(MovList *list, MovListEntry *entry);
 bool    mlist_execute(MovList *list, int argc, char **argv);
 
 bool    mlist_readParams(MovList *list, const char *inipath, const char *section);
-bool    mlist_readFile(MovList *list, CString *filepath, CString *fname);
-bool    mlist_writeFile(MovList *list, CString *filepath);
+bool    mlist_readFile(MovList *list, const char *filepath, const char *drivename);
+bool    mlist_writeFile(MovList *list, const char *filepath);
 
 struct _MovList
 {

@@ -6,7 +6,6 @@
 #include <cfileinfo.h>
 #include <cdirparser.h>
 #include <cinifile.h>
-//#include <cfile.h>
 #include <libpath.h>
 #include <libstr.h>
 #include <time.h>
@@ -15,7 +14,8 @@
 #include <print.h>
 
 #define DEFAULT_SECTION "Default"
-#define DEFAULT_HEADER "Default"
+#define DEFAULT_HEADER_STR "Drive\nDirectory\nYear\nTitle\nType\nSize\nModified"
+#define MEDIA_HEADER "Application\nBitRate\nDuration\nVideo\nWidth\nHeigth\nAspect\nFrameRate\nAudio"
 
 int _compare(const void *entry1, const void *entry2)
 {
@@ -43,7 +43,7 @@ MovList* mlist_new()
     return list;
 }
 
-void pritem_free(MovList *list)
+void mlist_free(MovList *list)
 {
     if (!list)
         return;
@@ -60,10 +60,9 @@ bool _mlist_read_directory(MovList *list,
                            MovList *movlist,
                            CString *basedir,
                            CString *subdir,
-                           CString *drivename);
+                           const char *drivename);
 
-CString _getDefaultHeader();
-bool _writeHeader(CString *buffer);
+void _mlist_writeHeader(MovList *list, CFile *file);
 
 int mlist_size(MovList *list)
 {
@@ -213,20 +212,20 @@ bool mlist_execute(MovList *list, int argc, char **argv)
 
     for (int i = 0; i < size; ++i)
     {
-        CString *drivename = cstrlist_at(list->inlist, i);
+        const char *drivename = c_str(cstrlist_at(list->inlist, i));
 
         print(LINE1);
-        print(" name  : %s", c_str(drivename));
+        print(" name  : %s", drivename);
 
         cstr_clear(fullpath);
 
         // no plugged drive, read input file.
 
-        if (!get_fullpath(fullpath, c_str(drivename)))
+        if (!get_fullpath(fullpath, drivename))
         {
             // External drive not plugged.
             if (file_exists(c_str(list->outpath))
-                && !mlist_readFile(list, list->outpath, drivename))
+                && !mlist_readFile(list, c_str(list->outpath), drivename))
                 return false;
 
             print("");
@@ -249,7 +248,7 @@ bool mlist_execute(MovList *list, int argc, char **argv)
 
             if (list->optinfos && file_exists(c_str(list->outpath)))
             {
-                if (!mlist_readFile(movlist, list->outpath, drivename))
+                if (!mlist_readFile(movlist, c_str(list->outpath), drivename))
                 {
                     mlist_free(movlist);
                     return false;
@@ -292,7 +291,7 @@ bool mlist_execute(MovList *list, int argc, char **argv)
 
     mlist_sortByKey(list);
 
-    if (!mlist_writeFile(list, list->outpath))
+    if (!mlist_writeFile(list, c_str(list->outpath)))
         return false;
 
     if (!list->optxls)
@@ -302,7 +301,7 @@ bool mlist_execute(MovList *list, int argc, char **argv)
     path_strip_ext(reportpath, true);
     cstr_append(reportpath, REPORT_EXT);
 
-    if (!mlist_writeFile(list, reportpath))
+    if (!mlist_writeFile(list, c_str(reportpath)))
         return false;
 
     return true;
@@ -330,7 +329,7 @@ bool mlist_readParams(MovList *list, const char *inipath, const char *section)
 }
 
 bool _mlist_read_directory(MovList *list, MovList *movlist,
-                           CString *basedir, CString *subdir, CString *drivename)
+                           CString *basedir, CString *subdir, const char *drivename)
 {
     CStringAuto *directory = cstr_new_size(128);
     path_join(directory, c_str(basedir), c_str(subdir));
@@ -349,6 +348,8 @@ bool _mlist_read_directory(MovList *list, MovList *movlist,
 
     CStringAuto *filepath = cstr_new_size(128);
     CFileInfoAuto *fileinfo = cfileinfo_new();
+
+    CStringAuto *temp = cstr_new_size(64);
 
     while (cdirparser_read(dir, filepath, NULL))
     {
@@ -379,9 +380,8 @@ bool _mlist_read_directory(MovList *list, MovList *movlist,
         ++count;
 
         MovListEntry *entry = mlist_entry_new();
-        // ******* mem leak
 
-        cstr_copy(entry->drive, c_str(drivename));
+        cstr_copy(entry->drive, drivename);
         cstr_copy(entry->directory, c_str(subdir));
         entry->fsize = fsize;
         entry->fmodified = cfileinfo_mtime(fileinfo);
@@ -394,83 +394,91 @@ bool _mlist_read_directory(MovList *list, MovList *movlist,
         }
 
         p = path_basename_ptr(c_str(filepath));
-
         if (!p)
             p = c_str(filepath);
 
-        cstr_copy(entry->title, p);
-        path_strip_ext(entry->title, true);
+        cstr_copy(temp, p);
+        path_strip_ext(temp, true);
+        p = c_str(temp);
 
-        p = c_str(entry->title);
         int pos = strstr(p, " - ") - p;
 
-        if (pos == 4 && p && strlen(p) > 7)
+        if (pos == 4 && strlen(p) > 7)
         {
-            entry->year = temp.left(pos);
-            entry->title = temp.mid(pos + 3);
+            cstr_left(temp, entry->year, 4);
+            cstr_mid(temp, entry->title, (pos + 3), -1);
+
             //print("year : %s", entry->year.c_str());
             //print("title : %s", entry->title.c_str());
         }
-
-        //entry->titleKey = getTitleKey(entry->title);
-        entry->titleKey = entry->title;
-        entry->sortKey = entry->titleKey;
-        entry->sortKey += entry->year;
-
-        if (_optinfos)
+        else
         {
-            MovListEntry *found = movlist.find(entry);
+            cstr_copy(entry->title, p);
+        }
+
+        cstr_copy(entry->titleKey, c_str(entry->title));
+        cstr_copy(entry->sortKey, c_str(entry->titleKey));
+        cstr_append(entry->sortKey, c_str(entry->year));
+
+        if (list->optinfos)
+        {
+            MovListEntry *found = mlist_find(movlist, entry);
             if (found)
             {
-                entry->getMediaInfo(found);
+                mlist_entry_get_media_info(entry, found);
             }
 
-            if (entry->mediainfo.isEmpty())
+            if (cstr_isempty(entry->mediainfo))
             {
                 print("    > read media infos...\n");
 
-                if (!getMediaInfo(filepath, entry->mediainfo))
+                char *cstr = getMediaInfo(c_str(filepath));
+
+                if (!cstr)
                 {
                     print("*** error: read media error");
                 }
+                else
+                {
+                    cstr_copy(entry->mediainfo, cstr);
+                    free(cstr);
 
-                //print(entry->mediainfo);
+                    //print(entry->mediainfo);
+                }
             }
         }
 
-        _entryList.append(entry);
+        clist_append(list->entryList, entry);
     }
 
     return true;
 }
 
-bool mlist_readFile(MovList *list, CString *filepath, CString *fname)
+bool mlist_readFile(MovList *list, const char *filepath, const char *drivename)
 {
-    print(" read  : %s", filepath.c_str());
+    print(" read  : %s", filepath);
 
-    // Parse all lines.
-    int count = 0;
+    CFileAuto *file = cfile_new();
 
-    if (!fname.isEmpty())
-        fname += SEP_TAB;
-
-    CFile file;
-
-    if (!file.read(filepath))
+    if (!cfile_read(file, filepath))
     {
-        print("*** Can't open input file: %s", filepath.c_str());
+        print("*** Can't open input file: %s", filepath);
         return false;
     }
 
-    CString line;
+    CStringAuto *fname = cstr_new_size(16);
+    cstr_copy(fname, drivename);
+    cstr_append(fname, SEP_TAB);
 
-    while (file.getLine(line))
+    // Parse all lines.
+    CStringAuto *line = cstr_new_size(512);
+    int count = 0;
+
+    while (cfile_getline(file, line))
     {
         if (count == 0)
         {
-            CString header = _getDefaultHeader();
-
-            if (!line.startsWith(header))
+            if (!cstr_startswith(line, DEFAULT_HEADER_STR, true))
             {
                 print("*** Invalid header.");
 
@@ -481,23 +489,24 @@ bool mlist_readFile(MovList *list, CString *filepath, CString *fname)
             continue;
         }
 
-        if (line.isEmpty())
+        if (cstr_isempty(line))
             continue;
 
-        if (!fname.isEmpty() && !line.startsWith(fname))
+        if (cstr_startswith(line, c_str(fname), true))
             continue;
 
-        MovListEntry *entry = new MovListEntry();
+        MovListEntry *entry = mlist_entry_new();
 
-        if (!entry->readLineTxt(line))
+        if (!mlist_entry_readline(entry, c_str(line)))
         {
-            print("*** Invalid line in %s", filepath.c_str());
+            print("*** Invalid line in %s", filepath);
 
-            delete entry;
+            mlist_entry_free(entry);
+
             return false;
         }
 
-        _entryList.append(entry);
+        clist_append(list->entryList, entry);
 
         ++count;
     }
@@ -507,123 +516,81 @@ bool mlist_readFile(MovList *list, CString *filepath, CString *fname)
     return true;
 }
 
-bool mlist_writeFile(MovList *list, CString *filepath)
+bool mlist_writeFile(MovList *list, const char *filepath)
 {
-    CString buffer;
+    CFileAuto *file = cfile_new();
+
+    if (!cfile_open(file, filepath, "wb"))
+        return false;
 
     bool report = false;
-    if (filepath.endsWith(REPORT_EXT))
+    if (str_endswith(filepath, REPORT_EXT, true))
         report = true;
 
-    _writeHeader(buffer);
+    _mlist_writeHeader(list, file);
 
-    //foreach (MovListEntry *entry, _entryList)
-
-    int size = _entryList.size();
+    int size = clist_size(list->entryList);
 
     for (int i = 0; i < size; ++i)
     {
-        MovListEntry *entry = (MovListEntry*) _entryList[i];
+        MovListEntry *entry = (MovListEntry*) clist_at(list->entryList, i);
 
-        buffer += entry->drive;
-        buffer += SEP_TAB;
-        buffer += entry->directory;
-        buffer += SEP_TAB;
-        buffer += entry->year;
-        buffer += SEP_TAB;
-        buffer += entry->title;
-        buffer += SEP_TAB;
-        buffer += entry->ftype;
+        cfile_write(file, c_str(entry->drive));
+        cfile_write(file, SEP_TAB);
+        cfile_write(file, c_str(entry->directory));
+        cfile_write(file, SEP_TAB);
+        cfile_write(file, c_str(entry->year));
+        cfile_write(file, SEP_TAB);
+        cfile_write(file, c_str(entry->title));
+        cfile_write(file, SEP_TAB);
+        cfile_write(file, c_str(entry->ftype));
 
         if (report)
         {
-            buffer += SEP_TAB;
-            buffer += uint64ToStr(entry->fsize / 1000000);
+            cfile_write(file, SEP_TAB);
 
-            buffer += SEP_TAB;
+            //cfile_write(file, uint64ToStr(entry->fsize / 1000000));
+
+            cfile_write(file, SEP_TAB);
 
             time_t ltime = entry->fmodified / 1000;
             struct tm *mytime = localtime(&ltime);
 
-            buffer += strFmt("%i/%.2i/%.2i-%.2i:%.2i",
-                             mytime->tm_year + 1900, mytime->tm_mon + 1, mytime->tm_mday,
-                             mytime->tm_hour, mytime->tm_min);
+            cfile_writefmt(file, "%i/%.2i/%.2i-%.2i:%.2i",
+                           mytime->tm_year + 1900, mytime->tm_mon + 1, mytime->tm_mday,
+                           mytime->tm_hour, mytime->tm_min);
         }
         else
         {
-            buffer += SEP_TAB;
-            buffer += uint64ToStr(entry->fsize);
-            buffer += SEP_TAB;
-            buffer += uint64ToStr(entry->fmodified);
+            cfile_write(file, SEP_TAB);
+            //cfile_write(file, uint64ToStr(entry->fsize));
+            cfile_write(file, SEP_TAB);
+            //cfile_write(file, uint64ToStr(entry->fmodified));
         }
 
-        if (_optinfos)
+        if (list->optinfos)
         {
-            buffer += SEP_TAB;
-            buffer += entry->mediainfo;
+            cfile_write(file, SEP_TAB);
+            cfile_write(file, c_str(entry->mediainfo));
         }
 
-        buffer += "\r\n";
-    }
-
-    if (report)
-    {
-        //wchar_t *wstr = utf8ToWchar(buffer);
-        //int size = WideCharToMultiByte(CP_ACP, 0, wstr, -1, NULL, 0, NULL, NULL);
-        //char* buff = (char*) malloc(size * sizeof(char));
-        //WideCharToMultiByte(CP_ACP, 0, wstr, -1, buff, size, NULL, NULL);
-        //free(wstr);
-
-        CFile::write(filepath, buffer);
-
-        //free(buff);
-    }
-    else
-    {
-        CFile::write(filepath, buffer);
+        cfile_write(file, "\n");
     }
 
     return true;
 }
 
-CString  MovList::_getDefaultHeader()
+void _mlist_writeHeader(MovList *list, CFile *file)
 {
-    CString sep = SEP_TAB;
+    cfile_write(file, DEFAULT_HEADER_STR);
 
-    CString result = "Drive";
-    result += sep;
-    result += "Directory";
-    result += sep;
-    result += "Year";
-    result += sep;
-    result += "Title";
-    result += sep;
-    result += "Type";
-    result += sep;
-    result += "Size";
-    result += sep;
-    result += "Modified";
-
-    return result;
-}
-
-bool MovList::_writeHeader(CString &buffer)
-{
-    CString sep = SEP_TAB;
-
-    CString line = _getDefaultHeader();
-
-    if (_optinfos)
+    if (list->optinfos)
     {
-        line += sep;
-        getMediaHeader(line);
+        cfile_write(file, SEP_TAB);
+        cfile_write(file, MEDIA_HEADER);
     }
 
-    line += "\r\n";
-
-    buffer += line;
-
-    return true;
+    cfile_write(file, "\n");
 }
 
 

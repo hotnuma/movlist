@@ -1,45 +1,46 @@
 #include "mlist_global.h"
 
 #include <cdirparser.h>
+#include <cfile.h>
 #include <libapp.h>
 
 #include <print.h>
 
 bool get_fullpath(CString *result, const char *drname)
 {
-    result.clear();
+    cstr_clear(result);
 
-    CString user = getUserName();
-    if (user.isEmpty())
+    CStringAuto *user = cstr_new_size(32);
+    get_username(user);
+
+    if (cstr_isempty(user))
     {
         print("*** error: can't get user name");
         return false;
     }
 
-    CString media = strFmt("/media/%s", user.c_str());
+    CStringAuto *media = cstr_new_size(64);
+    cstr_fmt(media, "/media/%s", c_str(user));
 
-    CDirParser dir;
-    if (!dir.open(media, CDP_DIRS))
+    CDirParserAuto *dir = cdirparser_new();
+    if (!cdirparser_open(dir, c_str(media), CDP_DIRS))
     {
         print("*** error: can't parse media directory");
         return false;
     }
 
-    CString dirpath;
+    CStringAuto *dirpath = cstr_new_size(128);
+    CStringAuto *fullpath = cstr_new_size(128);
 
-    while (dir.read(dirpath))
+    while (cdirparser_read(dir, dirpath, NULL))
     {
-        //print(dirpath);
+        cstr_fmt(fullpath, "%s/%s.ini", c_str(dirpath), drname);
 
-        CString fullpath = strFmt("%s/%s.ini",
-                                  dirpath.c_str(),
-                                  drname.c_str());
+        //print("path : %s", c_str(fullpath));
 
-        //print("path : %s", fullpath.c_str());
-
-        if (fileExists(fullpath))
+        if (file_exists(c_str(fullpath)))
         {
-            result = fullpath;
+            cstr_copy(result, c_str(fullpath));
 
             return true;
         }
