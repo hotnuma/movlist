@@ -531,6 +531,8 @@ bool mlist_writeFile(MovList *list, const char *filepath)
 
     int size = clist_size(list->entryList);
 
+    CStringAuto *temp = cstr_new_size(12);
+
     for (int i = 0; i < size; ++i)
     {
         MovListEntry *entry = (MovListEntry*) clist_at(list->entryList, i);
@@ -548,8 +550,8 @@ bool mlist_writeFile(MovList *list, const char *filepath)
         if (report)
         {
             cfile_write(file, SEP_TAB);
-
-            //cfile_write(file, uint64ToStr(entry->fsize / 1000000));
+            cstr_uint64(temp, (entry->fsize / 1000000));
+            cfile_write(file, c_str(temp));
 
             cfile_write(file, SEP_TAB);
 
@@ -563,9 +565,12 @@ bool mlist_writeFile(MovList *list, const char *filepath)
         else
         {
             cfile_write(file, SEP_TAB);
-            //cfile_write(file, uint64ToStr(entry->fsize));
+            cstr_uint64(temp, entry->fsize);
+            cfile_write(file, c_str(temp));
+
             cfile_write(file, SEP_TAB);
-            //cfile_write(file, uint64ToStr(entry->fmodified));
+            cstr_uint64(temp, entry->fmodified);
+            cfile_write(file, c_str(temp));
         }
 
         if (list->optinfos)
