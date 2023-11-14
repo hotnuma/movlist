@@ -22,11 +22,10 @@ bool    mlist_writeFile(MovList *list, const char *filepath);
 
 struct _MovList
 {
-    CStringList *inlist;
+    CStringList *drivelist;
     CString     *outpath;
 
     CString     *opt_include;
-    bool        opt_group;
     int         opt_minsize;
     bool        opt_media;
     bool        opt_ods;

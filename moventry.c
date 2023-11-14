@@ -44,27 +44,26 @@ void mentry_free(MovEntry *entry)
 
 bool mentry_readline(MovEntry *entry, const char *line)
 {
-    CStringList *allParts = cstrlist_new_size(16);
-    cstrlist_split(allParts, line, SEP_TAB, true, true);
-
-    int size = cstrlist_size(allParts);
+    CStringListAuto *allparts = cstrlist_new_size(16);
+    cstrlist_split(allparts, line, SEP_TAB, true, true);
+    int size = cstrlist_size(allparts);
 
     if (size < MLS_MINCOLS)
         return false;
 
-    cstr_copy(entry->drive, cstrlist_at_str(allParts, 0));
-    cstr_copy(entry->directory, cstrlist_at_str(allParts, 1));
-    cstr_copy(entry->year, cstrlist_at_str(allParts, 2));
-    cstr_copy(entry->title, cstrlist_at_str(allParts, 3));
+    cstr_copy(entry->drive, cstrlist_at_str(allparts, 0));
+    cstr_copy(entry->directory, cstrlist_at_str(allparts, 1));
+    cstr_copy(entry->year, cstrlist_at_str(allparts, 2));
+    cstr_copy(entry->title, cstrlist_at_str(allparts, 3));
     cstr_copy(entry->titleKey, c_str(entry->title));
-    cstr_copy(entry->fext, cstrlist_at_str(allParts, 4));
+    cstr_copy(entry->fext, cstrlist_at_str(allparts, 4));
 
     CStringAuto *temp = cstr_new_size(16);
 
-    cstr_copy(temp, cstrlist_at_str(allParts, 5));
+    cstr_copy(temp, cstrlist_at_str(allparts, 5));
     entry->fsize = strtoull(c_str(temp), NULL, 10);
 
-    cstr_copy(temp, cstrlist_at_str(allParts, 6));
+    cstr_copy(temp, cstrlist_at_str(allparts, 6));
     entry->ftime = strtoull(c_str(temp), NULL, 10);
 
     for (int i = MLS_MINCOLS; i < size; ++i)
@@ -72,7 +71,7 @@ bool mentry_readline(MovEntry *entry, const char *line)
         if (i > MLS_MINCOLS)
             cstr_append(entry->mediainfo, SEP_TAB);
 
-        cstr_append(entry->mediainfo, cstrlist_at_str(allParts, i));
+        cstr_append(entry->mediainfo, cstrlist_at_str(allparts, i));
     }
 
     cstr_copy(entry->sortKey, c_str(entry->titleKey));

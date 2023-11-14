@@ -9,7 +9,6 @@
 #include <libpath.h>
 #include <libstr.h>
 #include <time.h>
-#include <string.h>
 
 #include <print.h>
 
@@ -29,12 +28,11 @@ MovList* mlist_new()
 {
     MovList *list = (MovList*) malloc(sizeof(MovList));
 
-    list->inlist = cstrlist_new_size(16);
+    list->drivelist = cstrlist_new_size(16);
     list->outpath = cstr_new_size(128);
-    list->opt_include = cstr_new_size(128);
 
-    list->opt_group = false;
-    list->opt_minsize = 50;
+    list->opt_include = cstr_new_size(128);
+    list->opt_minsize = 0; //50;
     list->opt_media = false;
     list->opt_ods = false;
 
@@ -48,7 +46,7 @@ void mlist_free(MovList *list)
     if (!list)
         return;
 
-    cstrlist_free(list->inlist);
+    cstrlist_free(list->drivelist);
     cstr_free(list->outpath);
     cstr_free(list->opt_include);
     clist_free(list->entryList);
@@ -56,10 +54,8 @@ void mlist_free(MovList *list)
     free(list);
 }
 
-bool _mlist_read_directory(MovList *list,
-                           MovList *movlist,
-                           CString *basedir,
-                           CString *subdir,
+bool _mlist_read_directory(MovList *list, MovList *movlist,
+                           CString *basedir, CString *subdir,
                            const char *drivename);
 
 void _mlist_writeHeader(MovList *list, CFile *file);
@@ -164,8 +160,8 @@ bool mlist_execute(MovList *list, int argc, char **argv)
             cstr_copy(fname, part);
             path_strip_ext(fname, true);
 
-            if (cstrlist_find(list->inlist, c_str(fname), true) == -1)
-                cstrlist_append(list->inlist, c_str(fname));
+            if (cstrlist_find(list->drivelist, c_str(fname), true) == -1)
+                cstrlist_append(list->drivelist, c_str(fname));
         }
 
         else if (strcmp(part, "-o") == 0)
@@ -194,7 +190,7 @@ bool mlist_execute(MovList *list, int argc, char **argv)
         n++;
     }
 
-    if (cstrlist_isempty(list->inlist) || cstr_isempty(list->outpath))
+    if (cstrlist_isempty(list->drivelist) || cstr_isempty(list->outpath))
     {
         print("*** Missing option.");
         return false;
@@ -202,30 +198,31 @@ bool mlist_execute(MovList *list, int argc, char **argv)
 
     // parse inifile base names.
 
-    CStringAuto *fullpath = cstr_new_size(128);
+    CStringAuto *inipath = cstr_new_size(128);
+    CStringAuto *rootdir = cstr_new_size(128);
 
-    CStringAuto *basedir = cstr_new_size(128);
-    CStringListAuto *inclist =  cstrlist_new_size(24);
+    CStringListAuto *sublist =  cstrlist_new_size(24);
     CStringAuto *fulldir = cstr_new_size(128);
 
-    int size = cstrlist_size(list->inlist);
+    int size = cstrlist_size(list->drivelist);
 
     for (int i = 0; i < size; ++i)
     {
-        const char *drivename = c_str(cstrlist_at(list->inlist, i));
+        const char *drive = c_str(cstrlist_at(list->drivelist, i));
 
         print(LINE1);
-        print(" name  : %s", drivename);
+        print(" name  : %s", drive);
 
-        cstr_clear(fullpath);
+        cstr_clear(inipath);
 
-        // no plugged drive, read input file.
+        // search plugged drive from ini file name
 
-        if (!get_fullpath(fullpath, drivename))
+        if (!get_fullpath(inipath, drive))
         {
-            // External drive not plugged.
+            // drive not plugged, read txt file
+
             if (file_exists(c_str(list->outpath))
-                && !mlist_readFile(list, c_str(list->outpath), drivename))
+                && !mlist_readFile(list, c_str(list->outpath), drive))
                 return false;
 
             print("");
@@ -235,12 +232,13 @@ bool mlist_execute(MovList *list, int argc, char **argv)
 
         else
         {
-            print(" drive : %s", c_str(fullpath));
+            print(" drive : %s", c_str(inipath));
 
             // read ini file
-            if (!mlist_readParams(list, c_str(fullpath), c_str(section)))
+
+            if (!mlist_readParams(list, c_str(inipath), c_str(section)))
             {
-                print("*** Error reading file: %s", c_str(fullpath));
+                print("*** Error reading file: %s", c_str(inipath));
                 return false;
             }
 
@@ -248,7 +246,7 @@ bool mlist_execute(MovList *list, int argc, char **argv)
 
             if (list->opt_media && file_exists(c_str(list->outpath)))
             {
-                if (!mlist_readFile(movlist, c_str(list->outpath), drivename))
+                if (!mlist_readFile(movlist, c_str(list->outpath), drive))
                 {
                     mlist_free(movlist);
                     return false;
@@ -258,25 +256,21 @@ bool mlist_execute(MovList *list, int argc, char **argv)
             print(LINE2);
             print("");
 
-            // parse included sub directories.
+            // parse included sub directories
 
-            path_dirname(basedir, c_str(fullpath));
-            cstrlist_split(inclist, c_str(list->opt_include), ",", false, true);
+            path_dirname(rootdir, c_str(inipath));
+            cstrlist_split(sublist, c_str(list->opt_include), ",", false, true);
 
-            int sz = cstrlist_size(inclist);
+            int sz = cstrlist_size(sublist);
 
             for (int i = 0; i < sz; ++i)
             {
-                CString *subdir = cstrlist_at(inclist, i);
+                CString *subdir = cstrlist_at(sublist, i);
 
-                path_join(fulldir, c_str(basedir), c_str(subdir));
+                path_join(fulldir, c_str(rootdir), c_str(subdir));
                 print(" + %s", c_str(fulldir));
 
-                if (!_mlist_read_directory(list,
-                                           movlist,
-                                           basedir,
-                                           subdir,
-                                           drivename))
+                if (!_mlist_read_directory(list, movlist, rootdir, subdir, drive))
                 {
                     mlist_free(movlist);
                     return false;
@@ -324,6 +318,68 @@ bool mlist_readParams(MovList *list, const char *inipath, const char *section)
 
     if (cstr_isempty(list->opt_include))
         return false;
+
+    return true;
+}
+
+bool mlist_readFile(MovList *list, const char *filepath, const char *drive)
+{
+    print(" read  : %s", filepath);
+
+    CFileAuto *file = cfile_new();
+
+    if (!cfile_read(file, filepath))
+    {
+        print("*** Can't open input file: %s", filepath);
+        return false;
+    }
+
+    CStringAuto *fname = cstr_new_size(16);
+    cstr_copy(fname, drive);
+    cstr_append(fname, SEP_TAB);
+
+    // Parse all lines.
+    CStringAuto *line = cstr_new_size(512);
+    int count = 0;
+
+    while (cfile_getline(file, line))
+    {
+        if (count == 0)
+        {
+            if (!cstr_startswith(line, DEFAULT_HEADER, true))
+            {
+                print("*** Invalid header.");
+
+                return false;
+            }
+
+            ++count;
+            continue;
+        }
+
+        if (cstr_isempty(line))
+            continue;
+
+        if (!cstr_startswith(line, c_str(fname), true))
+            continue;
+
+        MovEntry *entry = mentry_new();
+
+        if (!mentry_readline(entry, c_str(line)))
+        {
+            print("*** Invalid line in %s", filepath);
+
+            mentry_free(entry);
+
+            return false;
+        }
+
+        clist_append(list->entryList, entry);
+
+        ++count;
+    }
+
+    print("         %i entries", clist_size(list->entryList));
 
     return true;
 }
@@ -450,68 +506,6 @@ bool _mlist_read_directory(MovList *list, MovList *movlist,
 
         clist_append(list->entryList, entry);
     }
-
-    return true;
-}
-
-bool mlist_readFile(MovList *list, const char *filepath, const char *drivename)
-{
-    print(" read  : %s", filepath);
-
-    CFileAuto *file = cfile_new();
-
-    if (!cfile_read(file, filepath))
-    {
-        print("*** Can't open input file: %s", filepath);
-        return false;
-    }
-
-    CStringAuto *fname = cstr_new_size(16);
-    cstr_copy(fname, drivename);
-    cstr_append(fname, SEP_TAB);
-
-    // Parse all lines.
-    CStringAuto *line = cstr_new_size(512);
-    int count = 0;
-
-    while (cfile_getline(file, line))
-    {
-        if (count == 0)
-        {
-            if (!cstr_startswith(line, DEFAULT_HEADER, true))
-            {
-                print("*** Invalid header.");
-
-                return false;
-            }
-
-            ++count;
-            continue;
-        }
-
-        if (cstr_isempty(line))
-            continue;
-
-        if (cstr_startswith(line, c_str(fname), true))
-            continue;
-
-        MovEntry *entry = mentry_new();
-
-        if (!mentry_readline(entry, c_str(line)))
-        {
-            print("*** Invalid line in %s", filepath);
-
-            mentry_free(entry);
-
-            return false;
-        }
-
-        clist_append(list->entryList, entry);
-
-        ++count;
-    }
-
-    print("         %i lines", count);
 
     return true;
 }
