@@ -31,11 +31,11 @@ app_deps = [
 ]
 
 app_sources = [
+    'global.c',
     'main.c',
-    'mlist.c',
-    'mlist_entry.c',
-    'mlist_global.c',
-    'mlist_mediainfo.cpp',
+    'mediainfo.cpp',
+    'moventry.c',
+    'movlist.c',
 ]
 
 executable(

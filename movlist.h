@@ -1,10 +1,10 @@
-#ifndef MLIST_H
-#define MLIST_H
+#ifndef MOVLIST_H
+#define MOVLIST_H
 
 #include "cstringlist.h"
 #include "cfile.h"
 #include "clist.h"
-#include "mlist_entry.h"
+#include "moventry.h"
 
 typedef struct _MovList MovList;
 MovList* mlist_new();
@@ -12,7 +12,7 @@ void    mlist_free(MovList *list);
 
 int     mlist_size(MovList *list);
 void    mlist_sortByKey(MovList *list);
-MovListEntry* mlist_find(MovList *list, MovListEntry *entry);
+MovEntry* mlist_find(MovList *list, MovEntry *entry);
 
 bool    mlist_execute(MovList *list, int argc, char **argv);
 
@@ -25,17 +25,16 @@ struct _MovList
     CStringList *inlist;
     CString     *outpath;
 
-    CString     *optinclude;
-
-    bool        optgroup;
-    int         optminsize;
-    bool        optinfos;
-    bool        optxls;
+    CString     *opt_include;
+    bool        opt_group;
+    int         opt_minsize;
+    bool        opt_media;
+    bool        opt_ods;
 
     CList       *entryList;
 
 };
 
-#endif // MLIST_H
+#endif // MOVLIST_H
 
 

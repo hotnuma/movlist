@@ -1,4 +1,4 @@
-#include "mlist_global.h"
+#include "global.h"
 
 #include <cdirparser.h>
 #include <cfile.h>

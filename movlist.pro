@@ -9,18 +9,18 @@ PKGCONFIG += tinyc
 PKGCONFIG += libmediainfo
 
 HEADERS = \
-    mlist.h \
-    mlist_entry.h \
-    mlist_global.h \
-    mlist_mediainfo.h
+    global.h \
+    mediainfo.h \
+    moventry.h \
+    movlist.h
 
 SOURCES = \
     0Temp.c \
+    global.c \
     main.c \
-    mlist.c \
-    mlist_entry.c \
-    mlist_global.c \
-    mlist_mediainfo.cpp
+    mediainfo.cpp \
+    moventry.c \
+    movlist.c
 
 DISTFILES = \
     install.sh \

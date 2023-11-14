@@ -1,23 +1,21 @@
-#include "mlist_entry.h"
+#include "moventry.h"
 #include <stdlib.h>
 #include "cstringlist.h"
-#include "mlist_global.h"
+#include "global.h"
 
 #define MLS_MINCOLS 7
 
-MovListEntry* mlist_entry_new()
+MovEntry* mentry_new()
 {
-    MovListEntry *entry = (MovListEntry*) malloc(sizeof(MovListEntry));
+    MovEntry *entry = (MovEntry*) malloc(sizeof(MovEntry));
 
     entry->drive = cstr_new_size(16);
     entry->directory = cstr_new_size(64);
     entry->year = cstr_new_size(4);
     entry->title = cstr_new_size(24);
-    entry->ftype = cstr_new_size(12);
-
+    entry->fext = cstr_new_size(12);
     entry->fsize = 0;
-    entry->fmodified = 0;
-
+    entry->ftime = 0;
     entry->mediainfo = cstr_new_size(128);
 
     entry->titleKey = cstr_new_size(24);
@@ -26,7 +24,7 @@ MovListEntry* mlist_entry_new()
     return entry;
 }
 
-void mlist_entry_free(MovListEntry *entry)
+void mentry_free(MovEntry *entry)
 {
     if (!entry)
         return;
@@ -35,8 +33,7 @@ void mlist_entry_free(MovListEntry *entry)
     cstr_free(entry->directory);
     cstr_free(entry->year);
     cstr_free(entry->title);
-    cstr_free(entry->ftype);
-
+    cstr_free(entry->fext);
     cstr_free(entry->mediainfo);
 
     cstr_free(entry->titleKey);
@@ -45,7 +42,7 @@ void mlist_entry_free(MovListEntry *entry)
     free(entry);
 }
 
-bool mlist_entry_readline(MovListEntry *entry, const char *line)
+bool mentry_readline(MovEntry *entry, const char *line)
 {
     CStringList *allParts = cstrlist_new_size(16);
     cstrlist_split(allParts, line, SEP_TAB, true, true);
@@ -60,7 +57,7 @@ bool mlist_entry_readline(MovListEntry *entry, const char *line)
     cstr_copy(entry->year, cstrlist_at_str(allParts, 2));
     cstr_copy(entry->title, cstrlist_at_str(allParts, 3));
     cstr_copy(entry->titleKey, c_str(entry->title));
-    cstr_copy(entry->ftype, cstrlist_at_str(allParts, 4));
+    cstr_copy(entry->fext, cstrlist_at_str(allParts, 4));
 
     CStringAuto *temp = cstr_new_size(16);
 
@@ -68,7 +65,7 @@ bool mlist_entry_readline(MovListEntry *entry, const char *line)
     entry->fsize = strtoull(c_str(temp), NULL, 10);
 
     cstr_copy(temp, cstrlist_at_str(allParts, 6));
-    entry->fmodified = strtoull(c_str(temp), NULL, 10);
+    entry->ftime = strtoull(c_str(temp), NULL, 10);
 
     for (int i = MLS_MINCOLS; i < size; ++i)
     {
@@ -84,7 +81,7 @@ bool mlist_entry_readline(MovListEntry *entry, const char *line)
     return true;
 }
 
-bool mlist_entry_get_media_info(MovListEntry *entry, MovListEntry *other)
+bool mentry_get_media_info(MovEntry *entry, MovEntry *other)
 {
     if (!other || cstr_isempty(other->mediainfo))
         return false;

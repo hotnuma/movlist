@@ -1,4 +1,4 @@
-#include "mlist_mediainfo.h"
+#include "mediainfo.h"
 #include <MediaInfo/MediaInfo.h>
 
 #define MediaInfoNameSpace MediaInfoLib;

@@ -1,7 +1,7 @@
-#include "mlist.h"
+#include "movlist.h"
 
-#include "mlist_global.h"
-#include "mlist_mediainfo.h"
+#include "global.h"
+#include "mediainfo.h"
 
 #include <cfileinfo.h>
 #include <cdirparser.h>
@@ -14,13 +14,13 @@
 #include <print.h>
 
 #define DEFAULT_SECTION "Default"
-#define DEFAULT_HEADER_STR "Drive\nDirectory\nYear\nTitle\nType\nSize\nModified"
-#define MEDIA_HEADER "Application\nBitRate\nDuration\nVideo\nWidth\nHeigth\nAspect\nFrameRate\nAudio"
+#define DEFAULT_HEADER "Drive\tDirectory\tYear\tTitle\tType\tSize\tModified"
+#define MEDIA_HEADER "Application\tBitRate\tDuration\tVideo\tWidth\tHeigth\tAspect\tFrameRate\tAudio"
 
 int _compare(const void *entry1, const void *entry2)
 {
-    const MovListEntry *e1 = *((MovListEntry**) entry1);
-    const MovListEntry *e2 = *((MovListEntry**) entry2);
+    const MovEntry *e1 = *((MovEntry**) entry1);
+    const MovEntry *e2 = *((MovEntry**) entry2);
 
     return cstr_compare(e1->sortKey, c_str(e2->sortKey), true);
 }
@@ -31,14 +31,14 @@ MovList* mlist_new()
 
     list->inlist = cstrlist_new_size(16);
     list->outpath = cstr_new_size(128);
-    list->optinclude = cstr_new_size(128);
+    list->opt_include = cstr_new_size(128);
 
-    list->optgroup = false;
-    list->optminsize = 50;
-    list->optinfos = false;
-    list->optxls = false;
+    list->opt_group = false;
+    list->opt_minsize = 50;
+    list->opt_media = false;
+    list->opt_ods = false;
 
-    list->entryList = clist_new(2048, (CDeleteFunc) mlist_entry_free);
+    list->entryList = clist_new(2048, (CDeleteFunc) mentry_free);
 
     return list;
 }
@@ -50,7 +50,7 @@ void mlist_free(MovList *list)
 
     cstrlist_free(list->inlist);
     cstr_free(list->outpath);
-    cstr_free(list->optinclude);
+    cstr_free(list->opt_include);
     clist_free(list->entryList);
 
     free(list);
@@ -74,7 +74,7 @@ void mlist_sortByKey(MovList *list)
     clist_sort(list->entryList, _compare);
 }
 
-MovListEntry* mlist_find(MovList *list, MovListEntry *entry)
+MovEntry* mlist_find(MovList *list, MovEntry *entry)
 {
     if (!entry)
         return NULL;
@@ -83,11 +83,11 @@ MovListEntry* mlist_find(MovList *list, MovListEntry *entry)
 
     for (int i = 0; i < size; ++i)
     {
-        MovListEntry *current = (MovListEntry*) clist_at(list->entryList, i);
+        MovEntry *current = (MovEntry*) clist_at(list->entryList, i);
 
         if (cstr_compare(current->title, c_str(entry->title), true) == 0
             && current->fsize == entry->fsize
-            && current->fmodified == entry->fmodified)
+            && current->ftime == entry->ftime)
             return current;
     }
 
@@ -125,17 +125,17 @@ bool mlist_execute(MovList *list, int argc, char **argv)
                 return false;
             }
 
-            list->optminsize = atoi(argv[n]);
+            list->opt_minsize = atoi(argv[n]);
         }
 
         else if (strcmp(part, "-me") == 0)
         {
-            list->optinfos = true;
+            list->opt_media = true;
         }
 
         else if (strcmp(part, "-xl") == 0)
         {
-            list->optxls = true;
+            list->opt_ods = true;
         }
 
         else if (strcmp(part, "-i") == 0)
@@ -246,7 +246,7 @@ bool mlist_execute(MovList *list, int argc, char **argv)
 
             MovList *movlist = mlist_new();
 
-            if (list->optinfos && file_exists(c_str(list->outpath)))
+            if (list->opt_media && file_exists(c_str(list->outpath)))
             {
                 if (!mlist_readFile(movlist, c_str(list->outpath), drivename))
                 {
@@ -261,7 +261,7 @@ bool mlist_execute(MovList *list, int argc, char **argv)
             // parse included sub directories.
 
             path_dirname(basedir, c_str(fullpath));
-            cstrlist_split(inclist, c_str(list->optinclude), ",", false, true);
+            cstrlist_split(inclist, c_str(list->opt_include), ",", false, true);
 
             int sz = cstrlist_size(inclist);
 
@@ -294,7 +294,7 @@ bool mlist_execute(MovList *list, int argc, char **argv)
     if (!mlist_writeFile(list, c_str(list->outpath)))
         return false;
 
-    if (!list->optxls)
+    if (!list->opt_ods)
         return true;
 
     CStringAuto *reportpath = cstr_new_copy(list->outpath);
@@ -320,9 +320,9 @@ bool mlist_readParams(MovList *list, const char *inipath, const char *section)
     if (!iniSection)
         return false;
 
-    cinisection_value(iniSection, list->optinclude, "include", "");
+    cinisection_value(iniSection, list->opt_include, "include", "");
 
-    if (cstr_isempty(list->optinclude))
+    if (cstr_isempty(list->opt_include))
         return false;
 
     return true;
@@ -370,7 +370,7 @@ bool _mlist_read_directory(MovList *list, MovList *movlist,
 
         // skip files that are to small.
         uint64_t fsize = cfileinfo_size(fileinfo);
-        if (fsize < (uint64_t) (list->optminsize * 1000000))
+        if (fsize < (uint64_t) (list->opt_minsize * 1000000))
             continue;
 
         if (count < 1)
@@ -379,18 +379,18 @@ bool _mlist_read_directory(MovList *list, MovList *movlist,
         print("   %s", c_str(filepath));
         ++count;
 
-        MovListEntry *entry = mlist_entry_new();
+        MovEntry *entry = mentry_new();
 
         cstr_copy(entry->drive, drivename);
         cstr_copy(entry->directory, c_str(subdir));
         entry->fsize = fsize;
-        entry->fmodified = cfileinfo_mtime(fileinfo);
+        entry->ftime = cfileinfo_mtime(fileinfo);
 
         const char *p = path_ext(c_str(filepath), true);
         if (p)
         {
             ++p;
-            cstr_copy(entry->ftype, p);
+            cstr_copy(entry->fext, p);
         }
 
         p = path_basename_ptr(c_str(filepath));
@@ -420,12 +420,12 @@ bool _mlist_read_directory(MovList *list, MovList *movlist,
         cstr_copy(entry->sortKey, c_str(entry->titleKey));
         cstr_append(entry->sortKey, c_str(entry->year));
 
-        if (list->optinfos)
+        if (list->opt_media)
         {
-            MovListEntry *found = mlist_find(movlist, entry);
+            MovEntry *found = mlist_find(movlist, entry);
             if (found)
             {
-                mlist_entry_get_media_info(entry, found);
+                mentry_get_media_info(entry, found);
             }
 
             if (cstr_isempty(entry->mediainfo))
@@ -478,7 +478,7 @@ bool mlist_readFile(MovList *list, const char *filepath, const char *drivename)
     {
         if (count == 0)
         {
-            if (!cstr_startswith(line, DEFAULT_HEADER_STR, true))
+            if (!cstr_startswith(line, DEFAULT_HEADER, true))
             {
                 print("*** Invalid header.");
 
@@ -495,13 +495,13 @@ bool mlist_readFile(MovList *list, const char *filepath, const char *drivename)
         if (cstr_startswith(line, c_str(fname), true))
             continue;
 
-        MovListEntry *entry = mlist_entry_new();
+        MovEntry *entry = mentry_new();
 
-        if (!mlist_entry_readline(entry, c_str(line)))
+        if (!mentry_readline(entry, c_str(line)))
         {
             print("*** Invalid line in %s", filepath);
 
-            mlist_entry_free(entry);
+            mentry_free(entry);
 
             return false;
         }
@@ -535,7 +535,7 @@ bool mlist_writeFile(MovList *list, const char *filepath)
 
     for (int i = 0; i < size; ++i)
     {
-        MovListEntry *entry = (MovListEntry*) clist_at(list->entryList, i);
+        MovEntry *entry = (MovEntry*) clist_at(list->entryList, i);
 
         cfile_write(file, c_str(entry->drive));
         cfile_write(file, SEP_TAB);
@@ -545,7 +545,7 @@ bool mlist_writeFile(MovList *list, const char *filepath)
         cfile_write(file, SEP_TAB);
         cfile_write(file, c_str(entry->title));
         cfile_write(file, SEP_TAB);
-        cfile_write(file, c_str(entry->ftype));
+        cfile_write(file, c_str(entry->fext));
 
         if (report)
         {
@@ -554,8 +554,7 @@ bool mlist_writeFile(MovList *list, const char *filepath)
             cfile_write(file, c_str(temp));
 
             cfile_write(file, SEP_TAB);
-
-            time_t ltime = entry->fmodified / 1000;
+            time_t ltime = entry->ftime / 1000;
             struct tm *mytime = localtime(&ltime);
 
             cfile_writefmt(file, "%i/%.2i/%.2i-%.2i:%.2i",
@@ -569,11 +568,11 @@ bool mlist_writeFile(MovList *list, const char *filepath)
             cfile_write(file, c_str(temp));
 
             cfile_write(file, SEP_TAB);
-            cstr_uint64(temp, entry->fmodified);
+            cstr_uint64(temp, entry->ftime);
             cfile_write(file, c_str(temp));
         }
 
-        if (list->optinfos)
+        if (list->opt_media)
         {
             cfile_write(file, SEP_TAB);
             cfile_write(file, c_str(entry->mediainfo));
@@ -587,9 +586,9 @@ bool mlist_writeFile(MovList *list, const char *filepath)
 
 void _mlist_writeHeader(MovList *list, CFile *file)
 {
-    cfile_write(file, DEFAULT_HEADER_STR);
+    cfile_write(file, DEFAULT_HEADER);
 
-    if (list->optinfos)
+    if (list->opt_media)
     {
         cfile_write(file, SEP_TAB);
         cfile_write(file, MEDIA_HEADER);
