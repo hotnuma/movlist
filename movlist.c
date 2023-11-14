@@ -34,6 +34,7 @@ MovList* mlist_new()
     list->opt_include = cstr_new_size(128);
     list->opt_minsize = 0; //50;
     list->opt_media = false;
+    list->opt_titlesort = false;
     list->opt_ods = false;
 
     list->entryList = clist_new(2048, (CDeleteFunc) mentry_free);
@@ -54,7 +55,7 @@ void mlist_free(MovList *list)
     free(list);
 }
 
-bool _mlist_read_directory(MovList *list, MovList *movlist,
+bool _mlist_read_directory(MovList *list, MovList *templist,
                            CString *rootdir, CString *subdir,
                            const char *drive);
 
@@ -65,8 +66,28 @@ int mlist_size(MovList *list)
     return clist_size(list->entryList);
 }
 
-void mlist_sortByKey(MovList *list)
+void mlist_sort(MovList *list)
 {
+    int size = clist_size(list->entryList);
+
+    for (int i = 0; i < size; ++i)
+    {
+        MovEntry *entry = (MovEntry*) clist_at(list->entryList, i);
+
+        if (list->opt_titlesort)
+        {
+            cstr_copy(entry->sortKey, c_str(entry->title));
+            cstr_append(entry->sortKey, c_str(entry->year));
+        }
+        else
+        {
+            cstr_copy(entry->sortKey, c_str(entry->directory));
+            cstr_append_c(entry->sortKey, '/');
+            cstr_append(entry->sortKey, c_str(entry->year));
+            cstr_append(entry->sortKey, c_str(entry->title));
+        }
+    }
+
     clist_sort(list->entryList, _compare);
 }
 
@@ -102,16 +123,14 @@ bool mlist_execute(MovList *list, int argc, char **argv)
     {
         const char *part = argv[n];
 
-        if (strcmp(part, "-se") == 0)
-        {
-            if (++n >= argc)
-            {
-                print("Missing parameter.");
-                return false;
-            }
+        // use media info
 
-            cstr_copy(section, argv[n]);
+        if (strcmp(part, "-me") == 0)
+        {
+            list->opt_media = true;
         }
+
+        // minimal file size
 
         else if (strcmp(part, "-mi") == 0)
         {
@@ -124,15 +143,34 @@ bool mlist_execute(MovList *list, int argc, char **argv)
             list->opt_minsize = atoi(argv[n]);
         }
 
-        else if (strcmp(part, "-me") == 0)
-        {
-            list->opt_media = true;
-        }
+        // create ods file
 
-        else if (strcmp(part, "-xl") == 0)
+        else if (strcmp(part, "-od") == 0)
         {
             list->opt_ods = true;
         }
+
+        // ini file section
+
+        else if (strcmp(part, "-se") == 0)
+        {
+            if (++n >= argc)
+            {
+                print("Missing parameter.");
+                return false;
+            }
+
+            cstr_copy(section, argv[n]);
+        }
+
+        // title sorting
+
+        else if (strcmp(part, "-so") == 0)
+        {
+            list->opt_titlesort = true;
+        }
+
+        // ini file name
 
         else if (strcmp(part, "-i") == 0)
         {
@@ -164,6 +202,8 @@ bool mlist_execute(MovList *list, int argc, char **argv)
                 cstrlist_append(list->drivelist, c_str(fname));
         }
 
+        // output file name
+
         else if (strcmp(part, "-o") == 0)
         {
             if (++n >= argc)
@@ -180,6 +220,8 @@ bool mlist_execute(MovList *list, int argc, char **argv)
                 return false;
             }
         }
+
+        // invalid
 
         else
         {
@@ -242,13 +284,13 @@ bool mlist_execute(MovList *list, int argc, char **argv)
                 return false;
             }
 
-            MovList *movlist = mlist_new();
+            MovList *templist = mlist_new();
 
             if (list->opt_media && file_exists(c_str(list->outpath)))
             {
-                if (!mlist_readFile(movlist, c_str(list->outpath), drive))
+                if (!mlist_readFile(templist, c_str(list->outpath), drive))
                 {
-                    mlist_free(movlist);
+                    mlist_free(templist);
                     return false;
                 }
             }
@@ -270,20 +312,20 @@ bool mlist_execute(MovList *list, int argc, char **argv)
                 path_join(fulldir, c_str(rootdir), c_str(subdir));
                 print(" + %s", c_str(fulldir));
 
-                if (!_mlist_read_directory(list, movlist, rootdir, subdir, drive))
+                if (!_mlist_read_directory(list, templist, rootdir, subdir, drive))
                 {
-                    mlist_free(movlist);
+                    mlist_free(templist);
                     return false;
                 }
 
                 print("");
             }
 
-            mlist_free(movlist);
+            mlist_free(templist);
         }
     }
 
-    mlist_sortByKey(list);
+    mlist_sort(list);
 
     if (!mlist_writeFile(list, c_str(list->outpath)))
         return false;
@@ -374,10 +416,6 @@ bool mlist_readFile(MovList *list, const char *filepath, const char *drive)
             return false;
         }
 
-        // sort order
-//        cstr_copy(entry->sortKey, c_str(entry->title));
-//        cstr_append(entry->sortKey, c_str(entry->year));
-
         clist_append(list->entryList, entry);
 
         ++count;
@@ -388,7 +426,7 @@ bool mlist_readFile(MovList *list, const char *filepath, const char *drive)
     return true;
 }
 
-bool _mlist_read_directory(MovList *list, MovList *movlist,
+bool _mlist_read_directory(MovList *list, MovList *templist,
                            CString *rootdir, CString *subdir,
                            const char *drive)
 {
@@ -487,12 +525,9 @@ bool _mlist_read_directory(MovList *list, MovList *movlist,
             cstr_copy(entry->title, p);
         }
 
-//        cstr_copy(entry->sortKey, c_str(entry->title));
-//        cstr_append(entry->sortKey, c_str(entry->year));
-
         if (list->opt_media)
         {
-            MovEntry *found = mlist_find(movlist, entry);
+            MovEntry *found = mlist_find(templist, entry);
             if (found)
             {
                 mentry_get_media_info(entry, found);
