@@ -22,7 +22,6 @@ struct _MovEntry
 
     CString *mediainfo;
 
-    CString *titleKey;
     CString *sortKey;
 };
 

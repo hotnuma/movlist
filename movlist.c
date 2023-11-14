@@ -55,8 +55,8 @@ void mlist_free(MovList *list)
 }
 
 bool _mlist_read_directory(MovList *list, MovList *movlist,
-                           CString *basedir, CString *subdir,
-                           const char *drivename);
+                           CString *rootdir, CString *subdir,
+                           const char *drive);
 
 void _mlist_writeHeader(MovList *list, CFile *file);
 
@@ -374,6 +374,10 @@ bool mlist_readFile(MovList *list, const char *filepath, const char *drive)
             return false;
         }
 
+        // sort order
+//        cstr_copy(entry->sortKey, c_str(entry->title));
+//        cstr_append(entry->sortKey, c_str(entry->year));
+
         clist_append(list->entryList, entry);
 
         ++count;
@@ -385,29 +389,30 @@ bool mlist_readFile(MovList *list, const char *filepath, const char *drive)
 }
 
 bool _mlist_read_directory(MovList *list, MovList *movlist,
-                           CString *basedir, CString *subdir, const char *drivename)
+                           CString *rootdir, CString *subdir,
+                           const char *drive)
 {
-    CStringAuto *directory = cstr_new_size(128);
-    path_join(directory, c_str(basedir), c_str(subdir));
+    CStringAuto *parsedir = cstr_new_size(128);
+    path_join(parsedir, c_str(rootdir), c_str(subdir));
+    int skiplen = cstr_size(rootdir) + 1;
 
-    if (cstr_isempty(directory) || !dir_exists(c_str(directory)))
+    if (cstr_isempty(parsedir) || !dir_exists(c_str(parsedir)))
     {
-        print("*** Can't read directory %s", c_str(directory));
+        print("*** Can't read directory %s", c_str(parsedir));
         return false;
     }
 
-    CDirParserAuto *dir = cdirparser_new();
-    if (!cdirparser_open(dir, c_str(directory), CDP_SUBDIRS | CDP_FILES))
+    CDirParserAuto *parser = cdirparser_new();
+    if (!cdirparser_open(parser, c_str(parsedir), CDP_SUBDIRS | CDP_FILES))
         return false;
 
     int count = 0;
 
     CStringAuto *filepath = cstr_new_size(128);
     CFileInfoAuto *fileinfo = cfileinfo_new();
-
     CStringAuto *temp = cstr_new_size(64);
 
-    while (cdirparser_read(dir, filepath, NULL))
+    while (cdirparser_read(parser, filepath, NULL))
     {
         if (!cstr_endswith(filepath, ".avi", false)
             && !cstr_endswith(filepath, ".divx", false)
@@ -433,17 +438,26 @@ bool _mlist_read_directory(MovList *list, MovList *movlist,
         if (count < 1)
             print("");
 
-        print("   %s", c_str(filepath));
+        if (skiplen >= cstr_size(filepath))
+        {
+            print("*** path error : %s", c_str(filepath));
+            continue;
+        }
+
+        const char *p = NULL;
+
+        p = c_str(filepath) + skiplen;
+        print("   %s", p);
         ++count;
 
         MovEntry *entry = mentry_new();
 
-        cstr_copy(entry->drive, drivename);
-        cstr_copy(entry->directory, c_str(subdir));
+        cstr_copy(entry->drive, drive);
+        path_dirname(entry->directory, p);
         entry->fsize = fsize;
         entry->ftime = cfileinfo_mtime(fileinfo);
 
-        const char *p = path_ext(c_str(filepath), true);
+        p = path_ext(c_str(filepath), true);
         if (p)
         {
             ++p;
@@ -473,9 +487,8 @@ bool _mlist_read_directory(MovList *list, MovList *movlist,
             cstr_copy(entry->title, p);
         }
 
-        cstr_copy(entry->titleKey, c_str(entry->title));
-        cstr_copy(entry->sortKey, c_str(entry->titleKey));
-        cstr_append(entry->sortKey, c_str(entry->year));
+//        cstr_copy(entry->sortKey, c_str(entry->title));
+//        cstr_append(entry->sortKey, c_str(entry->year));
 
         if (list->opt_media)
         {

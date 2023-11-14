@@ -18,7 +18,6 @@ MovEntry* mentry_new()
     entry->ftime = 0;
     entry->mediainfo = cstr_new_size(128);
 
-    entry->titleKey = cstr_new_size(24);
     entry->sortKey = cstr_new_size(24);
 
     return entry;
@@ -36,7 +35,6 @@ void mentry_free(MovEntry *entry)
     cstr_free(entry->fext);
     cstr_free(entry->mediainfo);
 
-    cstr_free(entry->titleKey);
     cstr_free(entry->sortKey);
 
     free(entry);
@@ -55,7 +53,6 @@ bool mentry_readline(MovEntry *entry, const char *line)
     cstr_copy(entry->directory, cstrlist_at_str(allparts, 1));
     cstr_copy(entry->year, cstrlist_at_str(allparts, 2));
     cstr_copy(entry->title, cstrlist_at_str(allparts, 3));
-    cstr_copy(entry->titleKey, c_str(entry->title));
     cstr_copy(entry->fext, cstrlist_at_str(allparts, 4));
 
     CStringAuto *temp = cstr_new_size(16);
@@ -73,9 +70,6 @@ bool mentry_readline(MovEntry *entry, const char *line)
 
         cstr_append(entry->mediainfo, cstrlist_at_str(allparts, i));
     }
-
-    cstr_copy(entry->sortKey, c_str(entry->titleKey));
-    cstr_append(entry->sortKey, c_str(entry->year));
 
     return true;
 }
