@@ -413,6 +413,7 @@ bool _mlist_read_directory(MovList *list, MovList *movlist,
             && !cstr_endswith(filepath, ".divx", false)
             && !cstr_endswith(filepath, ".flv", false)
             && !cstr_endswith(filepath, ".m2ts", false)
+            && !cstr_endswith(filepath, ".m4a", false)
             && !cstr_endswith(filepath, ".mkv", false)
             && !cstr_endswith(filepath, ".mp4", false)
             && !cstr_endswith(filepath, ".mpg", false)
