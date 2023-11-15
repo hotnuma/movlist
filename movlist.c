@@ -597,7 +597,7 @@ bool mlist_writeFile(MovList *list, const char *filepath)
             cfile_write(file, c_str(temp));
 
             cfile_write(file, SEP_TAB);
-            time_t ltime = entry->ftime / 1000;
+            time_t ltime = entry->ftime;
             struct tm *mytime = localtime(&ltime);
 
             cfile_writefmt(file, "%i/%.2i/%.2i-%.2i:%.2i",
