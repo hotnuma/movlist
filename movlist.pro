@@ -1,5 +1,5 @@
 TEMPLATE = app
-TARGET = newlist
+TARGET = movlist
 CONFIG = c99 c++11 link_pkgconfig
 DEFINES = UNICODE _GNU_SOURCE
 INCLUDEPATH =

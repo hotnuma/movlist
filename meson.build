@@ -1,5 +1,5 @@
 project(
-    'newlist',
+    'movlist',
     ['c', 'cpp'],
     default_options : [
         'c_std=c99',
