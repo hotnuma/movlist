@@ -5,7 +5,7 @@
 
 int main(int argc, char **argv)
 {
-    setlocale(LC_ALL, "fr_FR.UTF-8");
+    setlocale(LC_ALL, "");
 
     int ret = EXIT_SUCCESS;
 

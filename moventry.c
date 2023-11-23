@@ -18,7 +18,7 @@ MovEntry* mentry_new()
     entry->ftime = 0;
     entry->mediainfo = cstr_new_size(128);
 
-    entry->sortKey = cstr_new_size(24);
+    entry->sortKey = cstr_new_size(256);
 
     return entry;
 }

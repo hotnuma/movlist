@@ -68,6 +68,8 @@ int mlist_size(MovList *list)
 
 void mlist_sort(MovList *list)
 {
+    CStringAuto *temp = cstr_new_size(256);
+
     int size = clist_size(list->entryList);
 
     for (int i = 0; i < size; ++i)
@@ -86,6 +88,9 @@ void mlist_sort(MovList *list)
             cstr_append(entry->sortKey, c_str(entry->year));
             cstr_append(entry->sortKey, c_str(entry->title));
         }
+
+        cstr_xfrm(temp, c_str(entry->sortKey));
+        cstr_swap(entry->sortKey, temp);
     }
 
     clist_sort(list->entryList, _compare);
