@@ -83,7 +83,9 @@ void mlist_sort(MovList *list)
         }
         else
         {
-            cstr_copy(entry->sortKey, c_str(entry->directory));
+            cstr_copy(entry->sortKey, c_str(entry->drive));
+            cstr_append_c(entry->sortKey, '/');
+            cstr_append(entry->sortKey, c_str(entry->directory));
             cstr_append_c(entry->sortKey, '/');
             cstr_append(entry->sortKey, c_str(entry->year));
             cstr_append(entry->sortKey, c_str(entry->title));
